@@ -31,4 +31,4 @@ def save_submission(func_id, query, module_name="Unknown"):
             f.write("timestamp,module,function_id,query\n")
         f.write(f"{timestamp},{module_name},{func_id},{query}\n")
     
-    print(f"Saved submission for Function {func_id} to {log_path}")
+    print(f"Saved submission for Function {func_id} to {log_path.relative_to(project_root)}")
