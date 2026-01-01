@@ -206,6 +206,36 @@ gp = GaussianProcessRegressor(kernel=kernel, n_restarts_optimizer=10, alpha=1e-6
 | 7 | Careful Exploit | 0.05 | Week 1 peak is global best |
 | 8 | Micro-perturbation | 0.02 | Near-optimal; fine-tuning only |
 
+#### Week 4: Neural Network Surrogate Models
+
+**Paradigm Shift**: Replace Gaussian Processes with neural network ensembles
+
+**Why Neural Networks?**
+- **Gradient access via backpropagation**: Can compute ∂y/∂x to guide optimization
+- **Scalability**: O(n) training vs GP's O(n³)
+- **Feature learning**: Hidden layers can learn which dimensions matter
+- **Flexible approximation**: Universal approximator for complex surfaces
+
+**Implementation**:
+```python
+# Ensemble of MLPs for uncertainty quantification
+class EnsembleSurrogate:
+    - 5 MLPs with different random initializations
+    - Prediction uncertainty = variance across ensemble
+    - Gradient computation via backpropagation
+```
+
+| Function | Strategy | Method |
+|----------|----------|--------|
+| 1 | NN-UCB | High exploration (κ=3.0) |
+| 2 | NN-Gradient | Gradient ascent from best initial |
+| 3 | NN-UCB | Continue exploration |
+| 4 | **Exact Return** | Return to Week 1 (only positive) |
+| 5 | NN-Gradient | Gradient refinement of 1618 peak |
+| 6 | NN-UCB | Exploration with κ=2.5 |
+| 7 | NN-Exploit | Small perturbation of recovered peak |
+| 8 | NN-Gradient | Micro-tuning of new best (9.91) |
+
 ### Advanced Techniques Developed
 
 #### 1. Local Perturbation for Exploitation
@@ -244,8 +274,9 @@ The balance evolved across weeks:
 | 1 | 80% | 20% | Map the space; find promising regions |
 | 2 | 50% | 50% | Switch to exploitation where successful |
 | 3 | 15% | 85% | Protect good solutions; refine carefully |
+| 4 | 30% | 70% | NN gradients enable smarter exploitation |
 
-**Key Insight**: With only 3 queries per function, we cannot afford wasted exploration after finding good regions. The cost of losing a good solution outweighs the potential benefit of finding a marginally better one.
+**Key Insight**: With only 3-4 queries per function, we cannot afford wasted exploration after finding good regions. The cost of losing a good solution outweighs the potential benefit of finding a marginally better one. Neural networks add gradient-guided refinement for more efficient exploitation.
 
 ### What Makes This Approach Thoughtful
 
@@ -324,6 +355,7 @@ The balance evolved across weeks:
 | `01_Module_12.ipynb` | 1 | Initial exploration; function-adaptive UCB |
 | `02_Module_13.ipynb` | 2 | Hybrid exploitation-exploration strategy |
 | `03_Module_14.ipynb` | 3 | Conservative exploitation with local perturbation |
+| `04_Module_15.ipynb` | 4 | Neural network surrogate with gradient-guided optimization |
 
 ---
 
