@@ -64,18 +64,18 @@ Example (4D function): 0.362718-0.273413-0.996088-0.997538
 
 **Response**: A single real-valued scalar y ∈ ℝ representing the function's value at the queried point.
 
-**Observed Ranges by Function** (from collected data):
+**Observed Ranges by Function** (from collected data through Week 6):
 
-| Function | Output Range | Characteristics |
-|----------|--------------|-----------------|
-| 1 | [-0.004, ~0] | Extremely sparse; most outputs near-zero |
-| 2 | [-0.07, 0.61] | Multimodal with positive region |
-| 3 | [-0.40, -0.04] | All negative; monotonic trends |
-| 4 | [-32.6, 0.6] | Mostly negative; rare positive region |
-| 5 | [0.11, 1618.5] | Extremely wide range; corner optimum |
-| 6 | [-2.57, -0.71] | All negative; narrow range |
-| 7 | [0.003, 2.29] | Multimodal; moderate variance |
-| 8 | [5.59, 9.90] | All positive; narrow high-value range |
+| Function | Output Range | Best Found | Characteristics |
+|----------|--------------|------------|-----------------|
+| 1 | [-0.004, **1.626**] | 1.626 (W5) | Sparse; breakthrough at [0.63, 0.64] |
+| 2 | [-0.07, 0.667] | 0.667 (W4) | Multimodal with positive region |
+| 3 | [-0.40, -0.035] | -0.035 (init) | All negative; monotonic trends |
+| 4 | [-32.6, 0.600] | 0.600 (W1) | Mostly negative; rare positive region |
+| 5 | [0.11, 1618.5] | 1618.5 (W1) | Extremely wide range; corner optimum |
+| 6 | [-2.57, -0.714] | -0.714 (init) | All negative; narrow range |
+| 7 | [0.003, **2.403**] | 2.403 (W5) | Multimodal; steady improvement |
+| 8 | [5.59, **9.915**] | 9.915 (W3) | All positive; narrow high-value range |
 
 ### Example Input/Output Pair
 
@@ -236,6 +236,41 @@ class EnsembleSurrogate:
 | 7 | NN-Exploit | Small perturbation of recovered peak |
 | 8 | NN-Gradient | Micro-tuning of new best (9.91) |
 
+#### Week 5: Breakthrough Discovery
+
+**Major Result**: F1 achieved 8x improvement (0.196 → 1.626) at [0.634, 0.636]
+
+| Function | Strategy | Result |
+|----------|----------|--------|
+| 1 | Grid search near [0.65, 0.65] | **1.626** (breakthrough!) |
+| 2 | Micro-perturbation | 0.583 (regression) |
+| 3 | NN-gradient | -0.040 (near best) |
+| 4 | Exact Return | **0.600** (recovered) |
+| 5 | Exact Return | **1618.5** (recovered) |
+| 6 | Micro-perturbation | -0.735 (regression) |
+| 7 | NN-gradient | **2.403** (new best!) |
+| 8 | Exact Return | **9.915** (recovered) |
+
+**Key Lessons**:
+- EXACT_RETURN is reliable for protecting known optima
+- MICRO_PERTURB can cause regressions (F2, F6)
+- NN-gradient works well for steady improvement (F7)
+
+#### Week 6: Exploratory Strategy
+
+**Philosophy**: Explore aggressively now; consolidate in final week
+
+| Function | Strategy | Rationale |
+|----------|----------|-----------|
+| 1 | Trust Region Gradient | Exploit breakthrough safely |
+| 2 | NN-Gradient | Try to beat 0.667 |
+| 3 | NN-Gradient | Escape -0.035 stagnation |
+| 4 | Micro-Perturb | Tiny exploration around 0.600 |
+| 5 | Boundary Push | Push x2, x3 toward 1.0 |
+| 6 | NN-Gradient | Try to beat -0.714 |
+| 7 | NN-Gradient | Continue improvement |
+| 8 | NN-Gradient | Try to beat 9.915 |
+
 ### Advanced Techniques Developed
 
 #### 1. Local Perturbation for Exploitation
@@ -275,8 +310,10 @@ The balance evolved across weeks:
 | 2 | 50% | 50% | Switch to exploitation where successful |
 | 3 | 15% | 85% | Protect good solutions; refine carefully |
 | 4 | 30% | 70% | NN gradients enable smarter exploitation |
+| 5 | 40% | 60% | Balance recovery with targeted exploration |
+| 6 | 75% | 25% | Explore aggressively; can consolidate later |
 
-**Key Insight**: With only 3-4 queries per function, we cannot afford wasted exploration after finding good regions. The cost of losing a good solution outweighs the potential benefit of finding a marginally better one. Neural networks add gradient-guided refinement for more efficient exploitation.
+**Key Insight**: With limited queries, the strategy evolved from cautious exploitation (Weeks 3-4) to aggressive exploration (Week 6). The rationale: we can always return to known optima in the final week, so intermediate weeks should explore. Neural networks enable gradient-guided exploration that is more directed than random sampling.
 
 ### What Makes This Approach Thoughtful
 
@@ -290,12 +327,17 @@ The balance evolved across weeks:
 
 5. **Feature Importance Detection**: Identifying which dimensions matter (F5: x₂, x₃ dominate) and exploiting this structure
 
-### Considered but Not Fully Implemented
+### Techniques Implemented in Later Weeks
 
-- **SVMs**: Could be used for classification (good vs bad regions) but GP regression provides more information
-- **Ensemble Methods**: Multiple surrogate models could improve robustness
-- **Trust Region Methods**: Could formalize the local perturbation approach
-- **Multi-task Learning**: Sharing information across functions (not pursued due to different dimensionalities)
+- **Neural Network Ensembles**: 7 diverse models for uncertainty quantification (Week 4+)
+- **Trust Region Methods**: Formalized local perturbation with gradient guidance (Week 6)
+- **Gradient-Based Query Optimization**: Using ∂y/∂x from NN surrogates (Week 4+)
+
+### Considered but Not Pursued
+
+- **Multi-task Learning**: Sharing information across functions (different dimensionalities make this difficult)
+- **Bayesian Neural Networks**: Full posterior inference (ensembles provide sufficient uncertainty)
+- **Meta-learning**: Learning acquisition function from past weeks (limited data)
 
 ---
 
@@ -303,11 +345,22 @@ The balance evolved across weeks:
 
 ```text
 ├── data/                     # Contains samples.csv for each function (initial + new data)
+│   └── function_N/           # Data for function N (N=1-8)
+│       └── samples.csv       # All observed (x, y) pairs with source labels
+├── docs/                     # Documentation
+│   └── methodology.md        # BO loop diagram, design decisions, citations
 ├── notebooks/                # Jupyter notebooks for weekly analysis and query generation
+│   ├── 01_Module_12.ipynb    # Week 1: GP-based exploration
+│   ├── 02_Module_13.ipynb    # Week 2: Hybrid strategies
+│   ├── 03_Module_14.ipynb    # Week 3: Conservative exploitation
+│   ├── 04_Module_15.ipynb    # Week 4: Neural network surrogates
+│   ├── 05_Module_16.ipynb    # Week 5: Breakthrough discovery
+│   └── 06_Module_17.ipynb    # Week 6: Trust region exploration
 ├── src/                      # Source code for reusable logic
 │   ├── utils.py              # Helper functions (data loading, submission logging)
 │   └── initialize_samples.py # Script to reset/init data from .npy files
 ├── submissions/              # Log of submitted queries
+│   └── submission_log.csv    # All queries with timestamps
 ├── requirements.txt          # Python dependencies
 └── README.md                 # This file
 ```
@@ -356,6 +409,29 @@ The balance evolved across weeks:
 | `02_Module_13.ipynb` | 2 | Hybrid exploitation-exploration strategy |
 | `03_Module_14.ipynb` | 3 | Conservative exploitation with local perturbation |
 | `04_Module_15.ipynb` | 4 | Neural network surrogate with gradient-guided optimization |
+| `05_Module_16.ipynb` | 5 | Breakthrough discovery; F1 peak found at [0.63, 0.64] |
+| `06_Module_17.ipynb` | 6 | Trust region exploration; CNN/NN reflections |
+
+---
+
+## Documentation
+
+- [Methodology](docs/methodology.md) - BO loop diagram, key design decisions, and academic citations
+
+---
+
+## Key Results
+
+| Function | Initial Best | Final Best | Improvement |
+|----------|-------------|------------|-------------|
+| F1 | ~0 | **1.626** | Breakthrough discovery |
+| F2 | 0.611 | 0.667 | +9% |
+| F3 | -0.035 | -0.035 | Maintained |
+| F4 | 0.600 | 0.600 | Protected |
+| F5 | 1618.5 | 1618.5 | Protected |
+| F6 | -0.714 | -0.714 | Maintained |
+| F7 | 2.290 | **2.403** | +5% |
+| F8 | 9.066 | **9.915** | +9% |
 
 ---
 
