@@ -271,6 +271,33 @@ class EnsembleSurrogate:
 | 7 | NN-Gradient | Continue improvement |
 | 8 | NN-Gradient | Try to beat 9.915 |
 
+#### Week 7: NeurIPS 2020 BBO Challenge Techniques
+
+**Philosophy**: Apply state-of-the-art techniques from NeurIPS 2020 BBO Challenge winners
+
+**Key Techniques Implemented**:
+
+1. **TuRBO (Trust Region Bayesian Optimization)**: Adaptive trust regions that expand on success and contract on failure
+2. **Multi-Kernel GP Ensemble**: Matern (ν=0.5, 1.5, 2.5) + RBF kernels weighted by marginal likelihood
+3. **Hybrid NN-GP Ensemble**: Combines neural network ensembles with GP ensembles for robust predictions
+4. **Thompson Sampling**: Posterior sampling for principled exploration within trust regions
+5. **Sobol Sequences**: Quasi-random space-filling sequences for candidate generation
+
+| Function | Strategy | Rationale |
+|----------|----------|-----------|
+| 1 | TURBO_EXPLOIT | Small trust region (0.05) around [0.634, 0.636] - exploit breakthrough |
+| 2 | KERNEL_ENSEMBLE | Multi-kernel GP - escape stagnation at 0.667 |
+| 3 | TURBO_EXPLORE | Medium trust region (0.1) - W6 showed improvement is possible |
+| 4 | TURBO_EXPLOIT | Small TR (0.03) around 0.600 - explore nearby for potential improvement |
+| 5 | BOUNDARY_REFINE | Push x2, x3 even closer to 1.0 boundary - exploit corner structure |
+| 6 | KERNEL_ENSEMBLE | Multi-kernel GP - stagnant at -0.714 |
+| 7 | TURBO_EXPLOIT | Small trust region (0.05) around W5 best - continue momentum |
+| 8 | TURBO_EXPLOIT | Small TR (0.02) around 9.915 - fine-tune for potential improvement |
+
+**Key Insight**: No EXACT_RETURN in Week 7 - with more weeks remaining, returning to already-queried coordinates wastes exploration opportunities. EXACT_RETURN is reserved for the final week only.
+
+**Week 6 Analysis**: Most functions regressed due to unreliable NN gradient estimates for large steps. Multi-kernel GP analysis revealed functions F1-F6 have rough landscapes (Matern-0.5 best) while F7-F8 are smoother (Matern-2.5 best).
+
 ### Advanced Techniques Developed
 
 #### 1. Local Perturbation for Exploitation
@@ -312,6 +339,7 @@ The balance evolved across weeks:
 | 4 | 30% | 70% | NN gradients enable smarter exploitation |
 | 5 | 40% | 60% | Balance recovery with targeted exploration |
 | 6 | 75% | 25% | Explore aggressively; can consolidate later |
+| 7 | 25% | 75% | Use NeurIPS 2020 techniques; protect critical gains |
 
 **Key Insight**: With limited queries, the strategy evolved from cautious exploitation (Weeks 3-4) to aggressive exploration (Week 6). The rationale: we can always return to known optima in the final week, so intermediate weeks should explore. Neural networks enable gradient-guided exploration that is more directed than random sampling.
 
@@ -332,6 +360,11 @@ The balance evolved across weeks:
 - **Neural Network Ensembles**: 7 diverse models for uncertainty quantification (Week 4+)
 - **Trust Region Methods**: Formalized local perturbation with gradient guidance (Week 6)
 - **Gradient-Based Query Optimization**: Using ∂y/∂x from NN surrogates (Week 4+)
+- **TuRBO (Trust Region BO)**: Adaptive trust regions from NeurIPS 2019 (Week 7)
+- **Multi-Kernel GP Ensemble**: 4 kernels (Matern ν=0.5/1.5/2.5, RBF) weighted by marginal likelihood (Week 7)
+- **Hybrid NN-GP Ensemble**: Combines NN and GP predictions for robust uncertainty (Week 7)
+- **Thompson Sampling**: Posterior sampling for exploration within trust regions (Week 7)
+- **Sobol Sequences**: Quasi-random space-filling for candidate generation (Week 7)
 
 ### Considered but Not Pursued
 
@@ -355,7 +388,8 @@ The balance evolved across weeks:
 │   ├── 03_Module_14.ipynb    # Week 3: Conservative exploitation
 │   ├── 04_Module_15.ipynb    # Week 4: Neural network surrogates
 │   ├── 05_Module_16.ipynb    # Week 5: Breakthrough discovery
-│   └── 06_Module_17.ipynb    # Week 6: Trust region exploration
+│   ├── 06_Module_17.ipynb    # Week 6: Trust region exploration
+│   └── 07_Module_18.ipynb    # Week 7: NeurIPS 2020 BBO techniques
 ├── src/                      # Source code for reusable logic
 │   ├── utils.py              # Helper functions (data loading, submission logging)
 │   └── initialize_samples.py # Script to reset/init data from .npy files
@@ -411,6 +445,7 @@ The balance evolved across weeks:
 | `04_Module_15.ipynb` | 4 | Neural network surrogate with gradient-guided optimization |
 | `05_Module_16.ipynb` | 5 | Breakthrough discovery; F1 peak found at [0.63, 0.64] |
 | `06_Module_17.ipynb` | 6 | Trust region exploration; CNN/NN reflections |
+| `07_Module_18.ipynb` | 7 | NeurIPS 2020 BBO techniques: TuRBO, Multi-Kernel GP, Hybrid Ensembles |
 
 ---
 

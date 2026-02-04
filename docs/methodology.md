@@ -123,6 +123,106 @@ Architecture per NN:
 - Can learn non-stationary patterns
 - Diverse architectures improve uncertainty
 
+### Phase 3: NeurIPS 2020 BBO Techniques (Week 7)
+
+Based on winning solutions from the NeurIPS 2020 Black-Box Optimization Challenge.
+
+#### TuRBO (Trust Region Bayesian Optimization)
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│                    TURBO ALGORITHM                              │
+└────────────────────────────────────────────────────────────────┘
+
+Initialize: center = x_best, length = 0.1
+
+While not converged:
+    │
+    ├── Generate Sobol candidates within trust region
+    │       candidates ∈ [center - length/2, center + length/2]
+    │
+    ├── Thompson Sampling: sample from GP posterior
+    │       Select x* = argmax(posterior_sample)
+    │
+    ├── Query f(x*), observe y*
+    │
+    └── Update trust region:
+            │
+            ├── If y* > best:  success_counter++
+            │       If success_counter ≥ 3:
+            │           length = min(2 * length, 0.5)
+            │           success_counter = 0
+            │
+            └── If y* ≤ best:  failure_counter++
+                    If failure_counter ≥ 3:
+                        length = length / 2
+                        failure_counter = 0
+                        If length < 0.01: RESTART
+```
+
+**Key Insight**: Traditional BO assumes stationarity. TuRBO adapts search radius based on local success rate.
+
+#### Multi-Kernel GP Ensemble
+
+```
+Input x ──► ┌─────────────────┐     Weight by
+            │ GP (Matern-0.5) │──► ŷ_1  ──┐  marginal
+            └─────────────────┘          │  likelihood
+            ┌─────────────────┐          │
+      ──►   │ GP (Matern-1.5) │──► ŷ_2  ──┼──► μ = Σ w_i ŷ_i
+            └─────────────────┘          │     σ² = Σ w_i σ²_i
+            ┌─────────────────┐          │
+      ──►   │ GP (Matern-2.5) │──► ŷ_3  ──┤
+            └─────────────────┘          │
+            ┌─────────────────┐          │
+      ──►   │ GP (RBF)        │──► ŷ_4  ──┘
+            └─────────────────┘
+
+Weights: w_i = softmax(log_marginal_likelihood_i)
+```
+
+**Why Multiple Kernels?**
+- Matern ν=0.5: Models rough, non-differentiable functions
+- Matern ν=1.5: Once-differentiable functions
+- Matern ν=2.5: Twice-differentiable (smooth)
+- RBF: Infinitely differentiable (very smooth)
+
+**Finding**: Functions F1-F6 are best modeled by Matern-0.5 (rough), while F7-F8 prefer Matern-2.5 (smooth).
+
+#### Hybrid NN-GP Ensemble
+
+```
+                    ┌───────────────────┐
+                    │  NN Ensemble (7)  │──► μ_nn, σ_nn
+                    └───────────────────┘
+Input x ──►                                    ┌─────────────────┐
+                    ┌───────────────────┐      │ Weighted Avg:   │
+                    │  GP Ensemble (4)  │──► ──►│ μ = α·μ_nn +   │
+                    └───────────────────┘      │     (1-α)·μ_gp  │
+                                               └─────────────────┘
+
+α = 0.5 (equal weighting by default)
+```
+
+**Benefits**: Combines NN's gradient access with GP's principled uncertainty.
+
+#### BOUNDARY_REFINE Strategy
+
+For functions with optima near domain boundaries (like F5 where x₂, x₃ → 1.0):
+
+```
+BOUNDARY_REFINE:
+    1. Generate Sobol candidates within small trust region
+    2. Filter candidates biased toward boundary
+       (e.g., x₂ > threshold, x₃ > threshold)
+    3. Thompson Sampling among boundary-biased candidates
+    4. Select candidate that both:
+       - Has high posterior sample
+       - Pushes relevant dimensions toward boundary
+```
+
+**Rationale**: F5's optimum at [0.36, 0.27, 0.996, 0.998] shows x₂, x₃ should be maximized. BOUNDARY_REFINE exploits this structure by biasing exploration toward the boundary while still using principled Thompson Sampling.
+
 ---
 
 ## Key Design Decisions
@@ -174,23 +274,29 @@ Constraint: ||x_new - x_best|| ≤ r
 │                    STRATEGY SELECTION TREE                     │
 └────────────────────────────────────────────────────────────────┘
 
-Is this the final week?
+Is this the FINAL week?
     │
-    ├── YES → EXACT_RETURN to best known point
+    ├── YES → EXACT_RETURN to best known point (protect gains)
     │
-    └── NO → Evaluate function state:
+    └── NO → ALL exploration (never waste queries on known values):
               │
               ├── Found breakthrough (>>2x improvement)?
-              │       └── TRUST_REGION_GRADIENT (exploit carefully)
+              │       └── TURBO_EXPLOIT (small TR, careful exploration)
+              │
+              ├── Near boundary optimum (e.g., F5)?
+              │       └── BOUNDARY_REFINE (push toward bounds)
               │
               ├── Consistent improvement trend?
-              │       └── NN_GRADIENT (continue what works)
+              │       └── TURBO_EXPLOIT (continue momentum)
               │
               ├── Stagnant at local optimum?
-              │       └── BOUNDARY_PUSH or high-κ UCB
+              │       └── KERNEL_ENSEMBLE (try different smoothness)
               │
-              └── High variance / unstable?
-                      └── MICRO_PERTURB (small safe steps)
+              └── Unknown/unstable?
+                      └── TURBO_EXPLORE (moderate trust region)
+
+KEY INSIGHT: EXACT_RETURN wastes a query on already-known values.
+Reserve it ONLY for the final week to lock in best scores.
 ```
 
 ### 5. Boundary Handling
@@ -212,6 +318,7 @@ All queries constrained to [0.01, 0.99] instead of [0, 1]:
 | 4 | 15 | NN Ensemble | Gradient-guided | NNs enable ∂y/∂x |
 | 5 | 16 | NN Ensemble | Function-specific | F1 breakthrough at [0.63, 0.64] |
 | 6 | 17 | NN Ensemble | Exploratory | Explore now, consolidate later |
+| 7 | 18 | Hybrid NN-GP | TuRBO + Multi-Kernel | NeurIPS 2020 winning techniques |
 
 ---
 
@@ -266,6 +373,33 @@ All queries constrained to [0.01, 0.99] instead of [0, 1]:
    *Dropout as a Bayesian Approximation: Representing Model Uncertainty in Deep Learning.*
    ICML 2016.
    - Theoretical justification for dropout-based uncertainty
+
+### NeurIPS 2020 BBO Challenge Techniques
+
+6. **Eriksson, D., Pearce, M., Gardner, J., Turner, R., & Poloczek, M. (2019).**
+   *Scalable Global Optimization via Local Bayesian Optimization.*
+   NeurIPS 2019.
+   - TuRBO: Trust Region Bayesian Optimization
+   - Adaptive trust regions based on local success rate
+   - Foundation for Week 7 implementation
+
+7. **Turner, R., Eriksson, D., et al. (2021).**
+   *Bayesian Optimization is Superior to Random Search for Machine Learning Hyperparameter Tuning: Analysis of the Black-Box Optimization Challenge 2020.*
+   arXiv:2104.10201.
+   - Analysis of NeurIPS 2020 BBO Challenge results
+   - Comparison of winning strategies
+
+8. **Optuna Team (2020).**
+   *bboc-optuna-developers - 5th Place Solution.*
+   GitHub: optuna/bboc-optuna-developers
+   - Multi-kernel GP ensemble approach
+   - Kernel selection by marginal likelihood
+
+9. **RAPIDS AI Team (2020).**
+   *rapids-ai-BBO-2nd-place-solution.*
+   GitHub: daxiongshu/rapids-ai-BBO-2nd-place-solution
+   - Hybrid optimizer ensemble (TuRBO + scikit-optimize)
+   - Improved scores from 88.9 → 92.9
 
 ### Gaussian Processes
 
