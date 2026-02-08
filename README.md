@@ -64,18 +64,18 @@ Example (4D function): 0.362718-0.273413-0.996088-0.997538
 
 **Response**: A single real-valued scalar y ∈ ℝ representing the function's value at the queried point.
 
-**Observed Ranges by Function** (from collected data through Week 6):
+**Observed Ranges by Function** (from collected data through Week 8):
 
 | Function | Output Range | Best Found | Characteristics |
 |----------|--------------|------------|-----------------|
-| 1 | [-0.004, **1.626**] | 1.626 (W5) | Sparse; breakthrough at [0.63, 0.64] |
-| 2 | [-0.07, 0.667] | 0.667 (W4) | Multimodal with positive region |
-| 3 | [-0.40, -0.035] | -0.035 (init) | All negative; monotonic trends |
-| 4 | [-32.6, 0.600] | 0.600 (W1) | Mostly negative; rare positive region |
-| 5 | [0.11, 1618.5] | 1618.5 (W1) | Extremely wide range; corner optimum |
-| 6 | [-2.57, -0.714] | -0.714 (init) | All negative; narrow range |
-| 7 | [0.003, **2.403**] | 2.403 (W5) | Multimodal; steady improvement |
-| 8 | [5.59, **9.915**] | 9.915 (W3) | All positive; narrow high-value range |
+| 1 | [-0.004, **1.773**] | 1.773 (W8) | Breakthrough at [0.63, 0.62]; rough surface |
+| 2 | [-0.07, 0.667] | 0.667 (W4) | Multimodal; stagnant since Week 4 |
+| 3 | [-0.40, -0.0145] | -0.0145 (W7) | All negative; improving slowly |
+| 4 | [-32.6, **0.629**] | 0.629 (W8) | Mostly negative; breakthrough in Week 8 |
+| 5 | [0.11, 1618.5] | 1618.5 (W1) | Extremely wide range; boundary optimum at x₂,x₃≈1 |
+| 6 | [-2.57, **-0.586**] | -0.586 (W8) | All negative; 2 consecutive improvements (W7-W8) |
+| 7 | [0.003, **2.433**] | 2.433 (W8) | Smooth function; steady improvement |
+| 8 | [5.59, **9.928**] | 9.928 (W8) | All positive; near optimal |
 
 ### Example Input/Output Pair
 
@@ -298,6 +298,54 @@ class EnsembleSurrogate:
 
 **Week 6 Analysis**: Most functions regressed due to unreliable NN gradient estimates for large steps. Multi-kernel GP analysis revealed functions F1-F6 have rough landscapes (Matern-0.5 best) while F7-F8 are smoother (Matern-2.5 best).
 
+#### Week 8: Multi-Kernel Ensemble Breakthrough
+
+**Best week of the project: 5 out of 8 new bests.**
+
+**Key Techniques**:
+- Multi-kernel GP ensemble (Matern ν=0.5, 1.5, 2.5) weighted by log marginal likelihood
+- TuRBO trust regions with function-specific radii
+- Combined acquisition functions (UCB, EI, PI, Thompson Sampling)
+
+| Function | Strategy | Result |
+|----------|----------|--------|
+| 1 | Exploit (PI) | **1.773** (NEW BEST, +9%) |
+| 2 | TuRBO | 0.584 (regression) |
+| 3 | Exploit | -0.017 (slight regression) |
+| 4 | Ensemble (EI) | **0.629** (NEW BEST, +5%) |
+| 5 | Exploit | 1415.4 (regression — pulled from boundary) |
+| 6 | Exploit | **-0.586** (NEW BEST, +14%) |
+| 7 | TuRBO | **2.433** (NEW BEST, +1%) |
+| 8 | Exploit | **9.928** (NEW BEST, +0.1%) |
+
+#### Week 9: Deep Analysis, Bug Fixes & Corrected Strategies
+
+**Major course correction** based on comprehensive audit of all 8 functions across all weeks.
+
+**Critical Bugs Found & Fixed**:
+1. **Domain clipping [0.01, 0.99]**: Both trust region classes clipped candidates to 98% of domain. F5 lost ~200 points on 7 of 8 submissions because x2/x3 couldn't reach >0.99. Fixed to [0, 1].
+2. **Thompson Sampling override**: Threshold `0.01 * |y_best|` was scale-dependent. For F1, TS selected x1=0.592 (0.030 from peak — certain regression). Removed entirely.
+3. **BoundaryAwareTrustRegion pinning order**: Pinning was applied BEFORE clipping, so np.clip(0.99) overrode the pin. Now pin AFTER clip.
+4. **EI reversed F6's improvement trajectory**: x1 was consistently decreasing (0.155→0.145→0.126), but EI selected x1=0.155 (back to W4 value). Fixed with center_override.
+
+**Key Innovations**:
+- **`selection` parameter**: Explicit control over acquisition function (PI, EI, UCB, Mean, EI+UCB) — no more implicit TS overrides
+- **`center_override` parameter**: Override trust region center when GP best ≠ strategic target
+- **PI for exploitation**: PI asks "probability of beating current best" (conservative); EI rewards uncertainty (exploratory) — PI is correct for peaked functions
+- **Trajectory-predicted centers**: For F6, extrapolated improvement direction to set trust region center
+- **Boundary-aware optimization**: Pin F5's x₂, x₃ to (0.995, 1.0) with center at W1 optimum
+
+| Function | Strategy | Selection | Key Fix |
+|----------|----------|-----------|---------|
+| F1 | Exploit (r=0.008) | PI | Radius matched to peak width (~0.02) |
+| F2 | Exploit (r=0.015) | PI | Tight exploit; all previous tries pushed x1 too high |
+| F3 | Exploit (r=0.010) | PI | Removed TS override that caused exploratory selection |
+| F4 | Directional (r=0.03) | EI | Unchanged — already well-configured |
+| F5 | Boundary (r=0.008) | PI | Fixed clipping bug; center at W1 point; x2/x3 near 1.0 |
+| F6 | Directional (r=0.020) | EI | Trajectory center override to continue x1 decrease |
+| F7 | Exploit (r=0.025) | PI | Center override to test x0 < 0.01 (was stuck at clip floor) |
+| F8 | Exploit (r=0.010) | PI | Tighter radius; PI selection for conservative refinement |
+
 ### Advanced Techniques Developed
 
 #### 1. Local Perturbation for Exploitation
@@ -340,8 +388,10 @@ The balance evolved across weeks:
 | 5 | 40% | 60% | Balance recovery with targeted exploration |
 | 6 | 75% | 25% | Explore aggressively; can consolidate later |
 | 7 | 25% | 75% | Use NeurIPS 2020 techniques; protect critical gains |
+| 8 | 20% | 80% | Multi-kernel ensemble; exploit recent breakthroughs |
+| 9 | 12% | 88% | Bug fixes; PI for exploitation; tight trust regions |
 
-**Key Insight**: With limited queries, the strategy evolved from cautious exploitation (Weeks 3-4) to aggressive exploration (Week 6). The rationale: we can always return to known optima in the final week, so intermediate weeks should explore. Neural networks enable gradient-guided exploration that is more directed than random sampling.
+**Key Insight**: With limited queries, the strategy evolved from cautious exploitation (Weeks 3-4) to aggressive exploration (Week 6), then back to tight exploitation with bug fixes (Week 9). The Week 9 audit revealed that several "exploration" results were actually caused by bugs (domain clipping, TS override), not intentional strategy. With bugs fixed, exploitation is now more reliable and targeted.
 
 ### What Makes This Approach Thoughtful
 
@@ -381,7 +431,8 @@ The balance evolved across weeks:
 │   └── function_N/           # Data for function N (N=1-8)
 │       └── samples.csv       # All observed (x, y) pairs with source labels
 ├── docs/                     # Documentation
-│   └── methodology.md        # BO loop diagram, design decisions, citations
+│   ├── methodology.md        # BO loop diagram, design decisions, citations
+│   └── week9_deep_analysis.md # Comprehensive per-function audit (bugs, patterns, strategies)
 ├── notebooks/                # Jupyter notebooks for weekly analysis and query generation
 │   ├── 01_Module_12.ipynb    # Week 1: GP-based exploration
 │   ├── 02_Module_13.ipynb    # Week 2: Hybrid strategies
@@ -446,27 +497,30 @@ The balance evolved across weeks:
 | `05_Module_16.ipynb` | 5 | Breakthrough discovery; F1 peak found at [0.63, 0.64] |
 | `06_Module_17.ipynb` | 6 | Trust region exploration; CNN/NN reflections |
 | `07_Module_18.ipynb` | 7 | NeurIPS 2020 BBO techniques: TuRBO, Multi-Kernel GP, Hybrid Ensembles |
+| `08_Module_19.ipynb` | 8 | Multi-kernel ensemble + TuRBO; LLM-centred strategy reflection |
+| `09_Module_20.ipynb` | 9 | Directional exploitation, boundary-aware search, scaling & emergence |
 
 ---
 
 ## Documentation
 
 - [Methodology](docs/methodology.md) - BO loop diagram, key design decisions, and academic citations
+- [Week 9 Deep Analysis](docs/week9_deep_analysis.md) - Comprehensive audit of all 8 functions across all weeks: bugs found, data patterns, corrected strategies
 
 ---
 
-## Key Results
+## Key Results (After 8 Weeks)
 
-| Function | Initial Best | Final Best | Improvement |
-|----------|-------------|------------|-------------|
-| F1 | ~0 | **1.626** | Breakthrough discovery |
-| F2 | 0.611 | 0.667 | +9% |
-| F3 | -0.035 | -0.035 | Maintained |
-| F4 | 0.600 | 0.600 | Protected |
-| F5 | 1618.5 | 1618.5 | Protected |
-| F6 | -0.714 | -0.714 | Maintained |
-| F7 | 2.290 | **2.403** | +5% |
-| F8 | 9.066 | **9.915** | +9% |
+| Function | Initial Best | Current Best | Week Found | Improvement |
+|----------|-------------|-------------|------------|-------------|
+| F1 | ~0 | **1.773** | Week 8 | Breakthrough + refinement |
+| F2 | 0.611 | 0.667 | Week 4 | +9% (stagnant) |
+| F3 | -0.035 | **-0.0145** | Week 7 | +59% |
+| F4 | 0.600 | **0.629** | Week 8 | +5% (breakthrough) |
+| F5 | 1618.5 | 1618.5 | Week 1 | Protected (boundary optimum) |
+| F6 | -0.714 | **-0.586** | Week 8 | +18% (2 consecutive improvements) |
+| F7 | 2.290 | **2.433** | Week 8 | +6% |
+| F8 | 9.066 | **9.928** | Week 8 | +10% |
 
 ---
 

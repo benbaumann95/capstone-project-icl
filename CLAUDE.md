@@ -33,14 +33,14 @@ capstone-project-icl/
 
 | Function | Dim | Best Value | Best Location | Status |
 |----------|-----|------------|---------------|--------|
-| F1 | 2D | 1.626 | [0.6346, 0.6356] | Stable (Week 5) |
-| F2 | 2D | 0.667 | [0.7026, 0.9266] | Stagnant |
-| F3 | 3D | **-0.0145** | [0.5198, 0.6294, 0.3797] | **NEW BEST Week 7** |
-| F4 | 4D | 0.600 | [0.4046, 0.4148, 0.3574, 0.3990] | Protected |
-| F5 | 4D | 1618.5 | [0.3627, 0.2734, 0.9961, 0.9975] | Protected |
-| F6 | 5D | **-0.681** | [0.7084, 0.1454, 0.7533, 0.7305, 0.0527] | **NEW BEST Week 7** |
-| F7 | 6D | 2.403 | [0.0100, 0.1564, 0.5383, 0.2527, 0.3992, 0.7464] | Improving |
-| F8 | 8D | 9.915 | [0.0251, 0.0950, 0.1630, 0.0358, 0.8874, 0.3193, 0.1665, 0.2045] | Fine-tuning |
+| F1 | 2D | **1.773** | [0.6307, 0.6218] | **NEW BEST Week 8** |
+| F2 | 2D | 0.667 | [0.7026, 0.9266] | Stagnant (since Week 4) |
+| F3 | 3D | -0.0145 | [0.5198, 0.6294, 0.3797] | Best from Week 7 |
+| F4 | 4D | **0.629** | [0.4234, 0.3779, 0.4125, 0.4247] | **NEW BEST Week 8** |
+| F5 | 4D | 1618.5 | [0.3627, 0.2734, 0.9961, 0.9975] | Protected (boundary optimum) |
+| F6 | 5D | **-0.586** | [0.6902, 0.1258, 0.7578, 0.7367, 0.0510] | **NEW BEST Week 8** (2 consecutive) |
+| F7 | 6D | **2.433** | [0.0100, 0.1076, 0.5812, 0.2060, 0.3653, 0.7405] | **NEW BEST Week 8** |
+| F8 | 8D | **9.928** | [0.0259, 0.0952, 0.1534, 0.0495, 0.8710, 0.3337, 0.1697, 0.2230] | **NEW BEST Week 8** |
 
 **Query format**: Hyphen-separated decimals, e.g., `"0.634-0.636"` for 2D
 
@@ -87,21 +87,37 @@ save_submission(func_id, query_str, module_name="Module XX")
 
 ## Important Conventions
 
-- **Domain**: All inputs in [0, 1]^d; use [0.01, 0.99] to avoid edge issues
+- **Domain**: All inputs in [0, 1]^d. Clip to [0, 1] (NOT [0.01, 0.99] — the old margin was a bug)
 - **Random seeds**: Always set `np.random.seed(42)`, `torch.manual_seed(42)` for reproducibility
 - **Column naming**: x0, x1, ..., xD for inputs; y for output; source for tracking
-- **Trust regions**: 0.02-0.1 radius depending on solution quality
+- **Trust regions**: 0.008-0.03 radius depending on peak width (see per-function analysis)
+- **Selection method**: Use PI for exploitation, EI for directional, UCB for exploration. Never use TS overrides.
 
-## Key Learnings (from 8 weeks)
+## Key Learnings (from 9 weeks)
 
+### Technical
 1. **Kernel smoothness matters**: F1-F6 are rough (Matern ν=0.5 best), F7-F8 are smooth (Matern ν=2.5 best)
-2. **Perturbation scales inversely with quality**: Good solutions need fine-tuning (0.02), poor solutions need broader search (0.10)
-3. **Over-exploration early damages later consolidation**: Trust regions and careful step sizes prevent catastrophic failures
-4. **Thompson Sampling > UCB for high-dimensional spaces**: Posterior sampling naturally balances exploration
-5. **Neural networks enable gradients but are unreliable with few data points**: Best combined with GP uncertainty (hybrid approach)
-6. **Multi-kernel GP ensembles work well**: Weighting by log marginal likelihood automatically selects appropriate smoothness
-7. **17 data points is enough for reliable GP fits**: Ensemble weights become stable, predictions more accurate
-8. **Week 7 breakthroughs (F3, F6)**: Persistent exploration in promising regions eventually pays off
+2. **Multi-kernel GP ensembles work well**: Weighting by LML (60%) + LOO-CV (40%) automatically selects appropriate smoothness
+3. **Thompson Sampling needs diagonal approx**: Full covariance on 20K candidates creates 20K×20K matrix (3.2GB OOM) — use `mu + sigma * randn` instead
+4. **18+ data points is enough for reliable GP fits**: Ensemble weights become stable, predictions more accurate
+
+### Strategic
+5. **Trust region radius must match peak width**: F1's peak is ~0.02 wide, so r=0.008. F8 is flat, so r=0.010 is fine. Using r=0.025 on F1 caused certain regression.
+6. **PI > EI for exploitation**: EI rewards uncertainty (selects points FURTHER from best). PI asks "probability of beating current best" — correct for peaked functions.
+7. **Never use TS override for exploitation**: The threshold `0.01 * |y_best|` is scale-dependent and caused F1, F3 to select exploratory points during exploitation.
+8. **Improvement trajectories are real but fragile**: F6 showed clear directional improvement (W7→W8), but EI can select points that REVERSE the trajectory (the x1 reversal bug).
+9. **Center overrides are essential**: When the GP's predicted best ≠ the strategic target (e.g., F6 trajectory, F7 boundary test), override the trust region center.
+
+### Bugs Found & Fixed (Week 9)
+10. **Domain clipping [0.01, 0.99] was a critical bug**: Prevented F5's x2/x3 from reaching >0.99 (optimum at 0.996/0.998). Destroyed 7 of 8 F5 submissions. Fixed to [0, 1].
+11. **TS override with EI caused secret exploration**: For F1, TS selected x1=0.592 (0.030 from peak) during "exploitation". Removed entirely.
+12. **F5 BoundaryAwareTrustRegion pinning was overridden by clip**: Pinning set x2/x3 to (0.993, 0.999), then clip capped at 0.99. Now pin AFTER clip.
+13. **F7's x0 was stuck at 0.01 floor**: All top results had x0=0.010 (the clip floor). Now testing x0 < 0.01.
+
+### Function-Specific
+14. **F1 is extremely peaked**: Values drop from 1.77 to 0.85 with 0.025 shift. Radius must be < 0.01.
+15. **F2 may be noisy**: Same point gave 0.611 (initial) and 0.667 (W4). Every exploration attempt has failed.
+16. **F5 has extreme x2/x3 sensitivity**: Dropping x2 from 0.996 to 0.990 costs ~100 points. x0/x1 sensitivity is 10x lower.
 
 ## Strategy Selection Framework
 
@@ -153,18 +169,35 @@ See [docs/methodology.md](docs/methodology.md) for full citations and algorithmi
 
 ## Notes for Future Sessions
 
-- **Week 8 submitted** (Module 19 notebook)
-- **Week 7 Results Summary**:
-  - F3: NEW BEST -0.0145 (improved from -0.035)
-  - F6: NEW BEST -0.681 (improved from -0.714)
-  - Other functions: Minor regression or stable
-- **Week 8 Strategy**:
-  - Multi-kernel GP ensemble (weights: ν=0.5, 1.5, 2.5 by log marginal likelihood)
-  - TuRBO-style trust regions with function-specific radii
-  - Exploit strategy for F3, F6 (recent improvements)
-  - F4 has high predicted improvement potential (1.24 vs 0.60 current)
-- **Final weeks strategy**: Consider EXACT_RETURN in final week to lock in best known points
+- **Week 9 submitted** (Module 20 notebook)
+- **Week 8 Results Summary** (best week — 5/8 new bests):
+  - F1: **NEW BEST 1.773** (improved from 1.626, +9.0%)
+  - F4: **NEW BEST 0.629** (improved from 0.600, +4.8%)
+  - F6: **NEW BEST -0.586** (improved from -0.681, +13.9%, 2nd consecutive improvement)
+  - F7: **NEW BEST 2.433** (improved from 2.403, +1.2%)
+  - F8: **NEW BEST 9.928** (improved from 9.915, +0.1%)
+  - F2: Regression to 0.584 (stagnant since Week 4)
+  - F3: Slight regression to -0.017 (best remains -0.0145 from Week 7)
+  - F5: Regression to 1415.4 (boundary clipping bug pulled x2/x3 away from 1.0)
+- **Week 9 Major Fixes**:
+  - Fixed domain clipping bug: [0.01, 0.99] → [0, 1] (critical for F5, F7, F8)
+  - Removed TS override (caused secret exploration during exploitation)
+  - Added `selection` parameter to `optimize_function` (PI, EI, UCB, Mean, EI+UCB)
+  - Added `center_override` parameter (for when GP best ≠ strategic target)
+  - Fixed BoundaryAwareTrustRegion: pinning now applied AFTER clipping
+  - Full deep analysis documented in `docs/week9_deep_analysis.md`
+- **Week 9 Corrected Queries**:
+  - F1: `0.630748-0.618965` (PI, r=0.008 — matches peak width ~0.02)
+  - F2: `0.696774-0.941425` (PI, r=0.015 — tight exploit, untested direction)
+  - F3: `0.529607-0.638966-0.389611` (PI, r=0.010)
+  - F4: `0.422458-0.396694-0.385944-0.406530` (EI, directional, r=0.03)
+  - F5: `0.367932-0.276045-0.999957-0.999960` (PI, boundary, x2/x3 near 1.0!)
+  - F6: `0.652850-0.126519-0.771238-0.757384-0.031689` (EI, trajectory center)
+  - F7: `0.014132-0.131467-0.580441-0.217157-0.371219-0.747590` (PI, x0 near 0)
+  - F8: `0.032640-0.087004-0.148791-0.058486-0.880818-0.342923-0.166261-0.227331` (PI, r=0.010)
+- **4 weeks remaining** (Weeks 10-13)
+- **Final week strategy (Week 13)**: EXACT_RETURN — submit best known points to lock in results
 
 ---
 
-*Last updated: Week 8 (Module 19)*
+*Last updated: Week 9 (Module 20)*
