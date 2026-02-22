@@ -33,14 +33,14 @@ capstone-project-icl/
 
 | Function | Dim | Best Value | Best Location | Status |
 |----------|-----|------------|---------------|--------|
-| F1 | 2D | **1.773** | [0.6307, 0.6218] | **NEW BEST Week 8** |
+| F1 | 2D | 1.773 | [0.6307, 0.6218] | Best from Week 8 (W9 regressed) |
 | F2 | 2D | 0.667 | [0.7026, 0.9266] | Stagnant (since Week 4) |
-| F3 | 3D | -0.0145 | [0.5198, 0.6294, 0.3797] | Best from Week 7 |
-| F4 | 4D | **0.629** | [0.4234, 0.3779, 0.4125, 0.4247] | **NEW BEST Week 8** |
-| F5 | 4D | 1618.5 | [0.3627, 0.2734, 0.9961, 0.9975] | Protected (boundary optimum) |
-| F6 | 5D | **-0.586** | [0.6902, 0.1258, 0.7578, 0.7367, 0.0510] | **NEW BEST Week 8** (2 consecutive) |
-| F7 | 6D | **2.433** | [0.0100, 0.1076, 0.5812, 0.2060, 0.3653, 0.7405] | **NEW BEST Week 8** |
-| F8 | 8D | **9.928** | [0.0259, 0.0952, 0.1534, 0.0495, 0.8710, 0.3337, 0.1697, 0.2230] | **NEW BEST Week 8** |
+| F3 | 3D | **-0.0117** | [0.5296, 0.6390, 0.3896] | **NEW BEST Week 9** |
+| F4 | 4D | 0.629 | [0.4234, 0.3779, 0.4125, 0.4247] | Best from Week 8 (W9 regressed) |
+| F5 | 4D | **1674.2** | [0.3679, 0.2760, 0.9999, 0.9999] | **NEW BEST Week 9** (boundary fix!) |
+| F6 | 5D | -0.586 | [0.6902, 0.1258, 0.7578, 0.7367, 0.0510] | Best from Week 8 (W9 regressed) |
+| F7 | 6D | **2.448** | [0.0141, 0.1315, 0.5804, 0.2172, 0.3712, 0.7476] | **NEW BEST Week 9** |
+| F8 | 8D | **9.933** | [0.0326, 0.0870, 0.1488, 0.0585, 0.8808, 0.3429, 0.1663, 0.2273] | **NEW BEST Week 9** |
 
 **Query format**: Hyphen-separated decimals, e.g., `"0.634-0.636"` for 2D
 
@@ -93,7 +93,7 @@ save_submission(func_id, query_str, module_name="Module XX")
 - **Trust regions**: 0.008-0.03 radius depending on peak width (see per-function analysis)
 - **Selection method**: Use PI for exploitation, EI for directional, UCB for exploration. Never use TS overrides.
 
-## Key Learnings (from 9 weeks)
+## Key Learnings (from 10 weeks)
 
 ### Technical
 1. **Kernel smoothness matters**: F1-F6 are rough (Matern ν=0.5 best), F7-F8 are smooth (Matern ν=2.5 best)
@@ -114,10 +114,17 @@ save_submission(func_id, query_str, module_name="Module XX")
 12. **F5 BoundaryAwareTrustRegion pinning was overridden by clip**: Pinning set x2/x3 to (0.993, 0.999), then clip capped at 0.99. Now pin AFTER clip.
 13. **F7's x0 was stuck at 0.01 floor**: All top results had x0=0.010 (the clip floor). Now testing x0 < 0.01.
 
+### Week 9 Results & New Learnings
+14. **F1 gradient is ~67/unit in x1**: Shifting x1 by just 0.003 (0.6218→0.6190) caused 10.7% regression (1.773→1.583). Coordinate-wise line search needed.
+15. **F5 boundary fix was project's biggest win**: Pushing x2/x3 from 0.996/0.998 to 0.9999/0.9999 gained +55.7 points (+3.4%).
+16. **F4 directional EI (r=0.03) was disastrous**: Shifted x2 from 0.413→0.386, causing 37% regression. Never use EI with large radius on peaked functions.
+17. **F6 trajectory overshoot**: W9 took 2-3x the successful W7→W8 step size and regressed. Half-steps are safer.
+18. **F7 x0=0.014 > x0=0.010**: Small but real improvement, contradicting x0→0 hypothesis.
+
 ### Function-Specific
-14. **F1 is extremely peaked**: Values drop from 1.77 to 0.85 with 0.025 shift. Radius must be < 0.01.
-15. **F2 may be noisy**: Same point gave 0.611 (initial) and 0.667 (W4). Every exploration attempt has failed.
-16. **F5 has extreme x2/x3 sensitivity**: Dropping x2 from 0.996 to 0.990 costs ~100 points. x0/x1 sensitivity is 10x lower.
+19. **F1 is extremely peaked**: Values drop from 1.77 to 0.85 with 0.025 shift. Radius must be < 0.01. Even 0.003 shift = 10.7% regression.
+20. **F2 may be noisy**: Same point gave 0.611 (initial) and 0.667 (W4). 6 consecutive exploration failures. EXACT_RETURN only.
+21. **F5 has extreme x2/x3 sensitivity**: x2/x3 should be pinned at 1.0. x0/x1 optimum slightly above W1 values (~0.368, 0.276).
 
 ## Strategy Selection Framework
 
@@ -169,35 +176,28 @@ See [docs/methodology.md](docs/methodology.md) for full citations and algorithmi
 
 ## Notes for Future Sessions
 
-- **Week 9 submitted** (Module 20 notebook)
-- **Week 8 Results Summary** (best week — 5/8 new bests):
-  - F1: **NEW BEST 1.773** (improved from 1.626, +9.0%)
-  - F4: **NEW BEST 0.629** (improved from 0.600, +4.8%)
-  - F6: **NEW BEST -0.586** (improved from -0.681, +13.9%, 2nd consecutive improvement)
-  - F7: **NEW BEST 2.433** (improved from 2.403, +1.2%)
-  - F8: **NEW BEST 9.928** (improved from 9.915, +0.1%)
-  - F2: Regression to 0.584 (stagnant since Week 4)
-  - F3: Slight regression to -0.017 (best remains -0.0145 from Week 7)
-  - F5: Regression to 1415.4 (boundary clipping bug pulled x2/x3 away from 1.0)
-- **Week 9 Major Fixes**:
-  - Fixed domain clipping bug: [0.01, 0.99] → [0, 1] (critical for F5, F7, F8)
-  - Removed TS override (caused secret exploration during exploitation)
-  - Added `selection` parameter to `optimize_function` (PI, EI, UCB, Mean, EI+UCB)
-  - Added `center_override` parameter (for when GP best ≠ strategic target)
-  - Fixed BoundaryAwareTrustRegion: pinning now applied AFTER clipping
-  - Full deep analysis documented in `docs/week9_deep_analysis.md`
-- **Week 9 Corrected Queries**:
-  - F1: `0.630748-0.618965` (PI, r=0.008 — matches peak width ~0.02)
-  - F2: `0.696774-0.941425` (PI, r=0.015 — tight exploit, untested direction)
-  - F3: `0.529607-0.638966-0.389611` (PI, r=0.010)
-  - F4: `0.422458-0.396694-0.385944-0.406530` (EI, directional, r=0.03)
-  - F5: `0.367932-0.276045-0.999957-0.999960` (PI, boundary, x2/x3 near 1.0!)
-  - F6: `0.652850-0.126519-0.771238-0.757384-0.031689` (EI, trajectory center)
-  - F7: `0.014132-0.131467-0.580441-0.217157-0.371219-0.747590` (PI, x0 near 0)
-  - F8: `0.032640-0.087004-0.148791-0.058486-0.880818-0.342923-0.166261-0.227331` (PI, r=0.010)
-- **4 weeks remaining** (Weeks 10-13)
+- **Week 10 in progress** (Module 21 notebook)
+- **Week 9 Results Summary** (4/8 new bests):
+  - F3: **NEW BEST -0.0117** (improved from -0.0145, trajectory continues)
+  - F5: **NEW BEST 1674.2** (improved from 1618.5, +55.7! Boundary fix was critical)
+  - F7: **NEW BEST 2.448** (improved from 2.433, x0=0.014 > x0=0.010)
+  - F8: **NEW BEST 9.933** (improved from 9.928, tight exploitation works)
+  - F1: Regression to 1.583 (x1 shifted 0.003, lost 10.7% — peak is insanely narrow)
+  - F2: Regression to 0.510 (6th consecutive failed exploration)
+  - F4: Regression to 0.398 (directional EI r=0.03 was catastrophic)
+  - F6: Regression to -0.668 (trajectory overshoot — step was 2-3x too large)
+- **Week 10 Strategy**:
+  - F1: Coordinate-wise line search (hold x0, nudge x1 +0.002), r=0.005, PI
+  - F2: Exploit lower x1 direction (x1<0.927 untested), r=0.015, PI
+  - F3: Continue trajectory (+0.007 step), r=0.008, PI
+  - F4: Tight recovery around W8 best, r=0.010, PI
+  - F5: Push x2/x3 to exactly 1.0, fine-tune x0/x1, r=0.006, PI
+  - F6: Half-step trajectory from W8, r=0.010, PI
+  - F7: Directional exploit following W8→W9 direction, r=0.015, PI
+  - F8: Ultra-tight exploit, r=0.008, PI, constrain x0<0.035
+- **3 weeks remaining** (Weeks 10-12), Week 13 = EXACT_RETURN
 - **Final week strategy (Week 13)**: EXACT_RETURN — submit best known points to lock in results
 
 ---
 
-*Last updated: Week 9 (Module 20)*
+*Last updated: Week 10 (Module 21)*
