@@ -431,6 +431,8 @@ The balance evolved across weeks:
 │   └── function_N/           # Data for function N (N=1-8)
 │       └── samples.csv       # All observed (x, y) pairs with source labels
 ├── docs/                     # Documentation
+│   ├── datasheet.md          # Dataset documentation (datasheet)
+│   ├── model_card.md         # Optimisation approach documentation (model card)
 │   ├── methodology.md        # BO loop diagram, design decisions, citations
 │   └── week9_deep_analysis.md # Comprehensive per-function audit (bugs, patterns, strategies)
 ├── notebooks/                # Jupyter notebooks for weekly analysis and query generation
@@ -504,6 +506,8 @@ The balance evolved across weeks:
 
 ## Documentation
 
+- [Datasheet](docs/datasheet.md) - Dataset documentation: motivation, composition, collection process, and usage guidelines
+- [Model Card](docs/model_card.md) - Optimisation approach documentation: strategy evolution, performance, assumptions, and limitations
 - [Methodology](docs/methodology.md) - BO loop diagram, key design decisions, and academic citations
 - [Week 9 Deep Analysis](docs/week9_deep_analysis.md) - Comprehensive audit of all 8 functions across all weeks: bugs found, data patterns, corrected strategies
 
