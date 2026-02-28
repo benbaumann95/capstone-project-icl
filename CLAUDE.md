@@ -33,22 +33,22 @@ capstone-project-icl/
 
 | Function | Dim | Best Value | Best Location | Status |
 |----------|-----|------------|---------------|--------|
-| F1 | 2D | 1.773 | [0.6307, 0.6218] | Best from Week 8 (W9 regressed) |
-| F2 | 2D | 0.667 | [0.7026, 0.9266] | Stagnant (since Week 4) |
-| F3 | 3D | **-0.0117** | [0.5296, 0.6390, 0.3896] | **NEW BEST Week 9** |
-| F4 | 4D | 0.629 | [0.4234, 0.3779, 0.4125, 0.4247] | Best from Week 8 (W9 regressed) |
-| F5 | 4D | **1674.2** | [0.3679, 0.2760, 0.9999, 0.9999] | **NEW BEST Week 9** (boundary fix!) |
-| F6 | 5D | -0.586 | [0.6902, 0.1258, 0.7578, 0.7367, 0.0510] | Best from Week 8 (W9 regressed) |
-| F7 | 6D | **2.448** | [0.0141, 0.1315, 0.5804, 0.2172, 0.3712, 0.7476] | **NEW BEST Week 9** |
-| F8 | 8D | **9.933** | [0.0326, 0.0870, 0.1488, 0.0585, 0.8808, 0.3429, 0.1663, 0.2273] | **NEW BEST Week 9** |
+| F1 | 2D | **1.993** | [0.6297, 0.6287] | **NEW BEST Week 10** (+12.4%, biggest single-week gain) |
+| F2 | 2D | 0.667 | [0.7026, 0.9266] | Stagnant (since Week 4, confirmed noisy) |
+| F3 | 3D | -0.0117 | [0.5296, 0.6390, 0.3896] | Best from Week 9 (W10 overshot) |
+| F4 | 4D | 0.629 | [0.4234, 0.3779, 0.4125, 0.4247] | Best from Week 8 (W9, W10 regressed) |
+| F5 | 4D | **1675.3** | [0.3688, 0.2765, 1.0, 1.0] | **NEW BEST Week 10** (near-optimal) |
+| F6 | 5D | -0.586 | [0.6902, 0.1258, 0.7578, 0.7367, 0.0510] | Best from Week 8 (W9, W10 regressed) |
+| F7 | 6D | **2.480** | [0.0136, 0.1335, 0.5825, 0.2327, 0.3714, 0.7454] | **NEW BEST Week 10** (3 consecutive improvements) |
+| F8 | 8D | **9.937** | [0.0339, 0.0872, 0.1480, 0.0589, 0.8784, 0.3502, 0.1668, 0.2351] | **NEW BEST Week 10** (3 consecutive improvements) |
 
 **Query format**: Hyphen-separated decimals, e.g., `"0.634-0.636"` for 2D
 
 ## Key Technologies
 
 - **Gaussian Processes**: `sklearn.gaussian_process.GaussianProcessRegressor` with Matern kernels
-- **Neural Networks**: PyTorch ensembles (7 models) with LayerNorm, ReLU, Dropout
-- **Acquisition Functions**: UCB, Expected Improvement, Thompson Sampling
+- **Output Warping**: Yeo-Johnson PowerTransformer (HEBO-inspired, added Week 11)
+- **Acquisition Functions**: Multi-Acquisition Ensemble (PI+EI+UCB), Noisy EI, PI, EI, UCB
 - **Advanced BO**: TuRBO (trust regions), Multi-Kernel GP Ensemble, Sobol sequences
 
 ## Code Patterns
@@ -91,9 +91,9 @@ save_submission(func_id, query_str, module_name="Module XX")
 - **Random seeds**: Always set `np.random.seed(42)`, `torch.manual_seed(42)` for reproducibility
 - **Column naming**: x0, x1, ..., xD for inputs; y for output; source for tracking
 - **Trust regions**: 0.008-0.03 radius depending on peak width (see per-function analysis)
-- **Selection method**: Use PI for exploitation, EI for directional, UCB for exploration. Never use TS overrides.
+- **Selection method**: Use multi-acquisition ensemble (PI+EI+UCB) as default. Noisy EI for noisy functions (F2). Never use TS overrides.
 
-## Key Learnings (from 10 weeks)
+## Key Learnings (from 11 weeks)
 
 ### Technical
 1. **Kernel smoothness matters**: F1-F6 are rough (Matern ν=0.5 best), F7-F8 are smooth (Matern ν=2.5 best)
@@ -121,10 +121,19 @@ save_submission(func_id, query_str, module_name="Module XX")
 17. **F6 trajectory overshoot**: W9 took 2-3x the successful W7→W8 step size and regressed. Half-steps are safer.
 18. **F7 x0=0.014 > x0=0.010**: Small but real improvement, contradicting x0→0 hypothesis.
 
+### Week 10 Results & New Learnings
+19. **F1 coordinate-wise search unlocked +12.4%**: Moving x1 from 0.622→0.629 gave 1.773→1.993. Peak is near [0.630, 0.629], not [0.631, 0.622].
+20. **F2 is definitively noisy**: Three evaluations of exact same point [0.7026, 0.9266] gave 0.611, 0.667, 0.590. Use Noisy EI (GP-predicted incumbent).
+21. **F3 overshoots consistently**: +0.019/dim (W8) and +0.015/dim (W10) both regressed from W9 best. Peak very close to W9 position.
+22. **F4 is even more peaked than thought**: r=0.010 from W8 best caused 15% regression. Needs r≤0.003.
+23. **F6 trajectory hypothesis falsified**: Both full step (W9) and half step (W10) from W8 regressed. Abandon trajectory.
+24. **F7 x3-increasing direction confirmed**: 3 consecutive improvements following this direction.
+25. **Output warping (Yeo-Johnson) added in W11**: HEBO's #1 technique. Normalizes skewed y-distributions for better GP fitting.
+
 ### Function-Specific
-19. **F1 is extremely peaked**: Values drop from 1.77 to 0.85 with 0.025 shift. Radius must be < 0.01. Even 0.003 shift = 10.7% regression.
-20. **F2 may be noisy**: Same point gave 0.611 (initial) and 0.667 (W4). 6 consecutive exploration failures. EXACT_RETURN only.
-21. **F5 has extreme x2/x3 sensitivity**: x2/x3 should be pinned at 1.0. x0/x1 optimum slightly above W1 values (~0.368, 0.276).
+26. **F1 is extremely peaked**: Peak near [0.630, 0.629]. Radius must be ≤ 0.005. Even 0.003 shift = 10.7% regression.
+27. **F2 is noisy**: Same point gave 0.611, 0.667, 0.590. Use Noisy EI with GP-predicted incumbent.
+28. **F5 has extreme x2/x3 sensitivity**: x2/x3 should be pinned at 1.0. x0/x1 optimum near (~0.369, 0.277).
 
 ## Strategy Selection Framework
 
@@ -176,28 +185,30 @@ See [docs/methodology.md](docs/methodology.md) for full citations and algorithmi
 
 ## Notes for Future Sessions
 
-- **Week 10 in progress** (Module 21 notebook)
-- **Week 9 Results Summary** (4/8 new bests):
-  - F3: **NEW BEST -0.0117** (improved from -0.0145, trajectory continues)
-  - F5: **NEW BEST 1674.2** (improved from 1618.5, +55.7! Boundary fix was critical)
-  - F7: **NEW BEST 2.448** (improved from 2.433, x0=0.014 > x0=0.010)
-  - F8: **NEW BEST 9.933** (improved from 9.928, tight exploitation works)
-  - F1: Regression to 1.583 (x1 shifted 0.003, lost 10.7% — peak is insanely narrow)
-  - F2: Regression to 0.510 (6th consecutive failed exploration)
-  - F4: Regression to 0.398 (directional EI r=0.03 was catastrophic)
-  - F6: Regression to -0.668 (trajectory overshoot — step was 2-3x too large)
-- **Week 10 Strategy**:
-  - F1: Coordinate-wise line search (hold x0, nudge x1 +0.002), r=0.005, PI
-  - F2: Exploit lower x1 direction (x1<0.927 untested), r=0.015, PI
-  - F3: Continue trajectory (+0.007 step), r=0.008, PI
-  - F4: Tight recovery around W8 best, r=0.010, PI
-  - F5: Push x2/x3 to exactly 1.0, fine-tune x0/x1, r=0.006, PI
-  - F6: Half-step trajectory from W8, r=0.010, PI
-  - F7: Directional exploit following W8→W9 direction, r=0.015, PI
-  - F8: Ultra-tight exploit, r=0.008, PI, constrain x0<0.035
-- **3 weeks remaining** (Weeks 10-12), Week 13 = EXACT_RETURN
+- **Week 11 submitted** (Module 22 notebook) — HEBO-inspired upgrades
+- **Week 10 Results Summary** (4/8 new bests):
+  - F1: **NEW BEST 1.993** (improved from 1.773, +12.4%! Coordinate-wise search breakthrough)
+  - F5: **NEW BEST 1675.3** (improved from 1674.2, near-optimal)
+  - F7: **NEW BEST 2.480** (improved from 2.448, 3rd consecutive improvement)
+  - F8: **NEW BEST 9.937** (improved from 9.933, 3rd consecutive improvement)
+  - F2: Regression to 0.590 (EXACT_RETURN, confirms noise — 3 evals of same point: 0.611, 0.667, 0.590)
+  - F3: Regression to -0.027 (trajectory overshot +0.015/dim from W9 best)
+  - F4: Regression to 0.536 (r=0.010 still too large for this peaked function)
+  - F6: Regression to -0.628 (half-step trajectory also failed — hypothesis falsified)
+- **Week 11 Strategy** (HEBO-inspired):
+  - **3 new techniques**: Output Warping (Yeo-Johnson), Noisy EI (F2), Multi-Acquisition Ensemble (PI+EI+UCB)
+  - F1: Ultra-tight exploit [0.6295, 0.6295], r=0.003, Multi-acquisition
+  - F2: Noisy EI + x1<0.920 constraint, r=0.015 (testing untested low-x1 region)
+  - F3: GP-guided around W9 best, r=0.005, Multi-acquisition
+  - F4: Ultra-tight around W8 best, r=0.003, Multi(0.6PI+0.2EI+0.2UCB)
+  - F5: Pin x2/x3 near 1.0, fine-tune x0/x1, r=0.004, Multi-acquisition
+  - F6: Abandon trajectory, GP-guided perpendicular search, r=0.005, Multi-acquisition
+  - F7: Directional exploit (x3-increasing), r=0.010, Multi-acquisition
+  - F8: Ultra-tight + x0<0.035 constraint, r=0.006, Multi-acquisition
+- **1 exploration week remaining** (Week 12), Week 13 = EXACT_RETURN
 - **Final week strategy (Week 13)**: EXACT_RETURN — submit best known points to lock in results
+- **Reference**: See `docs/frontier_bbo_methods.md` for research on competition-winning methods
 
 ---
 
-*Last updated: Week 10 (Module 21)*
+*Last updated: Week 11 (Module 22)*
