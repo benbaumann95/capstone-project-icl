@@ -6,7 +6,7 @@
 |-------|---------|
 | **Name** | Multi-Kernel GP Ensemble with Trust Region Bayesian Optimization |
 | **Type** | Bayesian Optimization system (surrogate model + acquisition function + trust region) |
-| **Version** | v10 (Week 10 / Module 21) |
+| **Version** | v11 (Week 11 / Module 22) |
 | **Author** | Benjamin Baumann |
 | **Framework** | scikit-learn (Gaussian Processes), PyTorch (neural network ensembles), SciPy (optimization) |
 | **Context** | Imperial College BBO Capstone Challenge |
@@ -31,9 +31,9 @@
 
 ---
 
-## Details: Strategy Across Ten Rounds
+## Details: Strategy Across Eleven Rounds
 
-The optimization approach evolved significantly over 10 weeks of iterative refinement, driven by observed results and lessons learned from failures.
+The optimization approach evolved significantly over 11 weeks of iterative refinement, driven by observed results and lessons learned from failures.
 
 ### Phase 1: Exploration and Baseline (Weeks 1-3)
 
@@ -75,11 +75,19 @@ Adopted techniques from the NeurIPS 2020 BBO Challenge, including:
 The mature phase of the approach, producing the majority of new best values. Key refinements:
 
 - **Kernel weighting**: combined log marginal likelihood (60%) and leave-one-out cross-validation (40%) for robust kernel selection
-- **Probability of Improvement (PI)** replaced Expected Improvement (EI) for exploitation — PI asks "what is the probability of beating the current best?" while EI rewards uncertainty, which can push queries away from known optima
+- **Probability of Improvement (PI)** replaced Expected Improvement (EI) for exploitation -- PI asks "what is the probability of beating the current best?" while EI rewards uncertainty, which can push queries away from known optima
 - **Hard constraints**: per-dimension bounds to prevent queries from entering known-bad regions
 - **Coordinate-wise search**: for extremely peaked functions, perturbing one dimension at a time reduces risk
 - **Directional validation**: post-selection checks to ensure queries move in the expected improvement direction
 - **Critical bug fixes**: corrected domain clipping that had prevented boundary-optimal queries from reaching the true boundary
+
+### Phase 6: HEBO-Inspired Upgrades (Week 11)
+
+Applied techniques from HEBO (NeurIPS 2020 BBO Challenge winner, Huawei Noah's Ark Lab):
+
+- **Output warping (Yeo-Johnson)**: replaced StandardScaler with PowerTransformer on y values, improving GP fit on functions with skewed output distributions (e.g., F1 spans values from near-zero to 1.99)
+- **Noisy EI**: for confirmed noisy functions (F2), used the GP's posterior mean prediction as incumbent rather than the noisy observed best
+- **Multi-acquisition ensemble**: combined normalized PI (0.5) + EI (0.3) + UCB (0.2) scores instead of selecting a single acquisition function, reducing the risk of betting on the wrong criterion
 
 ### Key Innovations
 
@@ -92,30 +100,30 @@ The mature phase of the approach, producing the majority of new best values. Key
 
 ## Performance
 
-### Results Summary (After 10 Weeks)
+### Results Summary (After 11 Weeks)
 
 | Function | Dim | Initial Best | Current Best | Week Found | Strategy |
 |----------|-----|-------------|-------------|------------|----------|
-| F1 | 2D | ~0 | 1.773 | Week 8 | Coordinate-wise exploitation |
-| F2 | 2D | 0.611 | 0.667 | Week 4 | Stagnant; exploring new directions |
-| F3 | 3D | -0.035 | -0.012 | Week 9 | Trajectory following |
+| F1 | 2D | ~0 | 1.993 | Week 10 | Coordinate-wise exploitation |
+| F2 | 2D | 0.611 | 0.667 | Week 4 | Stagnant; confirmed noisy |
+| F3 | 3D | -0.035 | -0.0117 | Week 9 | Trajectory following |
 | F4 | 4D | 0.600 | 0.629 | Week 8 | Tight PI exploitation |
-| F5 | 4D | 1618.5 | 1674.2 | Week 9 | Boundary pinning |
-| F6 | 5D | -0.714 | -0.586 | Week 8 | Half-step trajectory |
-| F7 | 6D | 2.290 | 2.448 | Week 9 | Directional exploitation |
-| F8 | 8D | 9.066 | 9.933 | Week 9 | Ultra-tight exploitation |
+| F5 | 4D | 1618.5 | 1675.3 | Week 10 | Boundary pinning |
+| F6 | 5D | -0.714 | -0.586 | Week 8 | Trajectory hypothesis falsified |
+| F7 | 6D | 2.290 | 2.480 | Week 10 | Directional exploitation |
+| F8 | 8D | 9.066 | 9.937 | Week 10 | Ultra-tight exploitation |
 
 ### Performance Metrics
 
 - **Maximum value found**: the primary metric — the highest observed output for each function
-- **Consistency**: 7 of 8 functions improved from their initial best values; the best-performing weeks (W8, W9) achieved new records on 5 and 4 functions respectively
-- **Learning efficiency**: the approach produced most improvements in weeks 7-9 as the surrogate model and strategy matured, demonstrating effective learning from accumulated observations
+- **Consistency**: 7 of 8 functions improved from their initial best values; the best-performing weeks (W8, W9, W10) achieved new records on 5, 4, and 4 functions respectively
+- **Learning efficiency**: the approach produced most improvements in weeks 8-10 as the surrogate model and strategy matured, demonstrating effective learning from accumulated observations
 
 ### Notable Results
 
-- **F5 boundary fix** (Week 9): correcting a domain clipping bug produced the single largest improvement of the entire project, demonstrating that systematic code review can yield outsized returns
-- **F1 breakthrough** (Week 5-8): discovering and refining an extremely peaked optimum that was invisible to initial random sampling
-- **F8 steady refinement**: consistent marginal improvements over multiple weeks through tight exploitation, accumulating to meaningful gains
+- **F1 coordinate-wise exploitation** (Week 10): +12.4% improvement (1.773 to 1.993) by carefully varying one dimension at a time on an extremely peaked function, the project's biggest single-week percentage improvement
+- **F5 boundary fix** (Week 9): correcting a domain clipping bug produced the single largest absolute improvement of the entire project (+55.7 points), demonstrating that systematic code review can yield outsized returns
+- **F7 and F8 steady refinement**: consistent marginal improvements over 3 consecutive weeks (W8-W10) through tight directional exploitation, accumulating to meaningful gains
 
 ---
 

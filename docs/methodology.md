@@ -27,6 +27,7 @@ The following diagram illustrates the iterative BO process used throughout this 
            │  │                                             │   │
            │  │   Weeks 1-3: Gaussian Process (GP)          │   │
            │  │   Weeks 4-6: Neural Network Ensemble        │   │
+           │  │   Weeks 7-11: Multi-Kernel GP Ensemble      │   │
            │  │                                             │   │
            │  │   Input: D = {(x_i, y_i)}_{i=1}^n          │   │
            │  │   Output: p(y|x, D) with uncertainty        │   │
@@ -301,10 +302,10 @@ Reserve it ONLY for the final week to lock in best scores.
 
 ### 5. Boundary Handling
 
-All queries constrained to [0.01, 0.99] instead of [0, 1]:
-- Avoids numerical issues at exact boundaries
-- Some functions may have discontinuities at edges
-- Maintains safe distance from constraint violations
+All queries constrained to [0, 1] (the full domain):
+- **Critical bug fix (Week 9)**: The original [0.01, 0.99] clipping was a bug that prevented F5 from reaching its boundary optimum at x2, x3 near 1.0, costing ~200 points across 7 submissions
+- Boundary-aware trust regions handle functions with optima near domain edges
+- Functions with boundary optima (e.g., F5) use pinning to lock specific dimensions at boundary values
 
 ---
 
@@ -319,23 +320,27 @@ All queries constrained to [0.01, 0.99] instead of [0, 1]:
 | 5 | 16 | NN Ensemble | Function-specific | F1 breakthrough at [0.63, 0.64] |
 | 6 | 17 | NN Ensemble | Exploratory | Explore now, consolidate later |
 | 7 | 18 | Hybrid NN-GP | TuRBO + Multi-Kernel | NeurIPS 2020 winning techniques |
+| 8 | 19 | Multi-Kernel GP | PI exploitation | 5/8 new bests; best week overall |
+| 9 | 20 | Multi-Kernel GP | Bug fixes + PI | Domain clipping fix; 4/8 new bests |
+| 10 | 21 | Multi-Kernel GP | Coordinate-wise + constraints | 4/8 new bests; F1 +12.4% |
+| 11 | 22 | Multi-Kernel GP | HEBO-inspired upgrades | Output warping, noisy EI, multi-acquisition |
 
 ---
 
 ## Results Summary
 
-### Best Values Found (as of Week 6)
+### Best Values Found (as of Week 11)
 
-| Function | Dim | Best Value | Best Query | Week Found |
-|----------|-----|------------|------------|------------|
-| F1 | 2D | **1.626** | 0.634586-0.635560 | Week 5 |
-| F2 | 2D | 0.667 | 0.702637-0.926564 | Week 4 |
-| F3 | 3D | -0.035 | 0.492581-0.611593-0.340176 | Initial |
-| F4 | 4D | **0.600** | 0.404559-0.414786-0.357365-0.399048 | Week 1 |
-| F5 | 4D | **1618.5** | 0.362718-0.273413-0.996088-0.997538 | Week 1 |
-| F6 | 5D | -0.714 | 0.728186-0.154693-0.732552-0.693997-0.056401 | Initial |
-| F7 | 6D | **2.403** | 0.010000-0.156409-0.538271-0.252656-0.399221-0.746400 | Week 5 |
-| F8 | 8D | **9.915** | 0.024511-0.095108-0.162460-0.036406-0.886768-0.318315-0.166845-0.204731 | Week 3 |
+| Function | Dim | Best Value | Week Found | Strategy |
+|----------|-----|------------|------------|----------|
+| F1 | 2D | **1.993** | Week 10 | Coordinate-wise exploitation |
+| F2 | 2D | 0.667 | Week 4 | Stagnant; confirmed noisy |
+| F3 | 3D | **-0.0117** | Week 9 | Trajectory following |
+| F4 | 4D | **0.629** | Week 8 | Tight PI exploitation |
+| F5 | 4D | **1675.3** | Week 10 | Boundary pinning (x2, x3 near 1.0) |
+| F6 | 5D | **-0.586** | Week 8 | Half-step trajectory |
+| F7 | 6D | **2.480** | Week 10 | Directional exploitation |
+| F8 | 8D | **9.937** | Week 10 | Ultra-tight exploitation |
 
 ---
 
@@ -400,6 +405,13 @@ All queries constrained to [0.01, 0.99] instead of [0, 1]:
    GitHub: daxiongshu/rapids-ai-BBO-2nd-place-solution
    - Hybrid optimizer ensemble (TuRBO + scikit-optimize)
    - Improved scores from 88.9 → 92.9
+
+10. **Cowen-Rivers, A. I., Lyu, W., Tutunov, R., Wang, Z., Grosnit, A., Griffiths, R. R., ... & Bou-Ammar, H. (2022).**
+   *HEBO: Pushing the Limits of Sample-Efficient Hyperparameter Optimisation.*
+   Journal of Artificial Intelligence Research, 74, 1269-1349.
+   - NeurIPS 2020 BBO Challenge winner (Huawei Noah's Ark Lab)
+   - Output warping, noisy EI, multi-acquisition ensemble
+   - Foundation for Week 11 improvements
 
 ### Gaussian Processes
 

@@ -17,7 +17,7 @@ capstone-project-icl/
 │   ├── initial_inputs.npy     # Original random samples
 │   └── initial_outputs.npy    # Original outputs
 ├── notebooks/                 # Weekly analysis and query generation
-│   └── 0X_Module_YY.ipynb     # One notebook per week (Module 12-18)
+│   └── XX_Module_YY.ipynb     # One notebook per week (Module 12-22)
 ├── src/
 │   ├── utils.py               # load_data(), save_submission()
 │   └── initialize_samples.py  # Reset data from .npy files

@@ -64,18 +64,18 @@ Example (4D function): 0.362718-0.273413-0.996088-0.997538
 
 **Response**: A single real-valued scalar y ∈ ℝ representing the function's value at the queried point.
 
-**Observed Ranges by Function** (from collected data through Week 8):
+**Observed Ranges by Function** (from collected data through Week 11):
 
 | Function | Output Range | Best Found | Characteristics |
 |----------|--------------|------------|-----------------|
-| 1 | [-0.004, **1.773**] | 1.773 (W8) | Breakthrough at [0.63, 0.62]; rough surface |
-| 2 | [-0.07, 0.667] | 0.667 (W4) | Multimodal; stagnant since Week 4 |
-| 3 | [-0.40, -0.0145] | -0.0145 (W7) | All negative; improving slowly |
-| 4 | [-32.6, **0.629**] | 0.629 (W8) | Mostly negative; breakthrough in Week 8 |
-| 5 | [0.11, 1618.5] | 1618.5 (W1) | Extremely wide range; boundary optimum at x₂,x₃≈1 |
-| 6 | [-2.57, **-0.586**] | -0.586 (W8) | All negative; 2 consecutive improvements (W7-W8) |
-| 7 | [0.003, **2.433**] | 2.433 (W8) | Smooth function; steady improvement |
-| 8 | [5.59, **9.928**] | 9.928 (W8) | All positive; near optimal |
+| 1 | [-0.004, **1.993**] | 1.993 (W10) | Extremely peaked near [0.63, 0.63]; rough surface |
+| 2 | [-0.07, 0.667] | 0.667 (W4) | Confirmed noisy; stagnant since Week 4 |
+| 3 | [-0.40, **-0.0117**] | -0.0117 (W9) | All negative; peaked near W9 position |
+| 4 | [-32.6, **0.629**] | 0.629 (W8) | Mostly negative; extremely peaked |
+| 5 | [0.11, **1675.3**] | 1675.3 (W10) | Boundary optimum at x₂,x₃≈1; near-optimal |
+| 6 | [-2.57, **-0.586**] | -0.586 (W8) | All negative; trajectory hypothesis falsified |
+| 7 | [0.003, **2.480**] | 2.480 (W10) | Smooth function; 3 consecutive improvements |
+| 8 | [5.59, **9.937**] | 9.937 (W10) | All positive; 3 consecutive improvements |
 
 ### Example Input/Output Pair
 
@@ -346,6 +346,46 @@ class EnsembleSurrogate:
 | F7 | Exploit (r=0.025) | PI | Center override to test x0 < 0.01 (was stuck at clip floor) |
 | F8 | Exploit (r=0.010) | PI | Tighter radius; PI selection for conservative refinement |
 
+#### Week 10: Coordinate-Wise Exploitation & Constraints
+
+**Best result: 4 out of 8 new bests** (F1, F5, F7, F8). F1's +12.4% was the project's biggest single-week improvement.
+
+**Key Techniques**:
+- Coordinate-wise line search: vary one dimension at a time to reduce regression risk on peaked functions
+- Hard per-dimension constraints (e.g., x0 < 0.035 for F8) to prevent entering known-bad regions
+- Directional trust regions: bias candidate generation toward observed improvement trajectories
+
+| Function | Strategy | Result |
+|----------|----------|--------|
+| F1 | Coordinate-wise (PI) | **1.993** (NEW BEST, +12.4%) |
+| F2 | Constrained exploit | 0.590 (regression) |
+| F3 | Trajectory following | -0.027 (regression) |
+| F4 | Tight PI exploit | 0.536 (regression) |
+| F5 | Boundary pinning | **1675.3** (NEW BEST, +0.07%) |
+| F6 | Half-step trajectory | -0.628 (regression) |
+| F7 | Directional exploit | **2.480** (NEW BEST, +1.3%) |
+| F8 | Ultra-tight + constraint | **9.937** (NEW BEST, +0.04%) |
+
+#### Week 11: HEBO-Inspired Upgrades
+
+**Philosophy**: Apply techniques from HEBO (NeurIPS 2020 BBO Challenge winner, Huawei Noah's Ark Lab) for the penultimate exploration week.
+
+**Key Upgrades**:
+1. **Output Warping (Yeo-Johnson)**: Replace StandardScaler with PowerTransformer on y values to handle skewed distributions (F1 spans 1e-79 to 1.99)
+2. **Noisy EI**: For noisy functions (F2), use GP-predicted incumbent instead of noisy observed best
+3. **Multi-Acquisition Ensemble**: Combine normalized PI (0.5) + EI (0.3) + UCB (0.2) scores instead of betting on a single acquisition function
+
+| Function | Strategy | Key Change |
+|----------|----------|------------|
+| F1 | Ultra-tight exploit (r=0.003) | Output warping improves GP fit |
+| F2 | Constrained exploit (x1 < 0.920) | Noisy EI with GP-predicted incumbent |
+| F3 | GP-guided (r=0.005) | 4 local points for triangulation |
+| F4 | Ultra-tight (r=0.003) | Multi-acquisition ensemble |
+| F5 | Boundary pinning (r=0.004) | Pin x2/x3, fine-tune x0/x1 |
+| F6 | GP-guided (r=0.005) | Abandon trajectory, try perpendicular |
+| F7 | Directional (r=0.010) | Follow x3-increasing direction |
+| F8 | Constrained (r=0.006) | x0 < 0.035 constraint |
+
 ### Advanced Techniques Developed
 
 #### 1. Local Perturbation for Exploitation
@@ -390,8 +430,10 @@ The balance evolved across weeks:
 | 7 | 25% | 75% | Use NeurIPS 2020 techniques; protect critical gains |
 | 8 | 20% | 80% | Multi-kernel ensemble; exploit recent breakthroughs |
 | 9 | 12% | 88% | Bug fixes; PI for exploitation; tight trust regions |
+| 10 | 10% | 90% | Coordinate-wise exploitation; constraints; directional trust regions |
+| 11 | 15% | 85% | HEBO-inspired upgrades; output warping; multi-acquisition ensemble |
 
-**Key Insight**: With limited queries, the strategy evolved from cautious exploitation (Weeks 3-4) to aggressive exploration (Week 6), then back to tight exploitation with bug fixes (Week 9). The Week 9 audit revealed that several "exploration" results were actually caused by bugs (domain clipping, TS override), not intentional strategy. With bugs fixed, exploitation is now more reliable and targeted.
+**Key Insight**: With limited queries, the strategy evolved from cautious exploitation (Weeks 3-4) to aggressive exploration (Week 6), then back to tight exploitation with bug fixes (Week 9). The Week 9 audit revealed that several "exploration" results were actually caused by bugs (domain clipping, TS override), not intentional strategy. Weeks 10-11 continued tight exploitation with HEBO-inspired improvements (output warping, noisy EI, multi-acquisition ensemble).
 
 ### What Makes This Approach Thoughtful
 
@@ -415,6 +457,11 @@ The balance evolved across weeks:
 - **Hybrid NN-GP Ensemble**: Combines NN and GP predictions for robust uncertainty (Week 7)
 - **Thompson Sampling**: Posterior sampling for exploration within trust regions (Week 7)
 - **Sobol Sequences**: Quasi-random space-filling for candidate generation (Week 7)
+- **Probability of Improvement (PI)**: Conservative acquisition for peaked functions (Week 8+)
+- **Hard Constraints**: Per-dimension bounds to filter candidates (Week 10)
+- **Output Warping (Yeo-Johnson)**: PowerTransformer for skewed y distributions (Week 11)
+- **Noisy EI**: GP-predicted incumbent for noisy functions (Week 11)
+- **Multi-Acquisition Ensemble**: Weighted PI + EI + UCB scoring (Week 11)
 
 ### Considered but Not Pursued
 
@@ -442,7 +489,9 @@ The balance evolved across weeks:
 │   ├── 04_Module_15.ipynb    # Week 4: Neural network surrogates
 │   ├── 05_Module_16.ipynb    # Week 5: Breakthrough discovery
 │   ├── 06_Module_17.ipynb    # Week 6: Trust region exploration
-│   └── 07_Module_18.ipynb    # Week 7: NeurIPS 2020 BBO techniques
+│   ├── 07_Module_18.ipynb    # Week 7: NeurIPS 2020 BBO techniques
+│   ├── ...                   # Weeks 8-10: Multi-kernel ensemble refinement
+│   └── 11_Module_22.ipynb    # Week 11: HEBO-inspired upgrades
 ├── src/                      # Source code for reusable logic
 │   ├── utils.py              # Helper functions (data loading, submission logging)
 │   └── initialize_samples.py # Script to reset/init data from .npy files
@@ -501,6 +550,8 @@ The balance evolved across weeks:
 | `07_Module_18.ipynb` | 7 | NeurIPS 2020 BBO techniques: TuRBO, Multi-Kernel GP, Hybrid Ensembles |
 | `08_Module_19.ipynb` | 8 | Multi-kernel ensemble + TuRBO; LLM-centred strategy reflection |
 | `09_Module_20.ipynb` | 9 | Directional exploitation, boundary-aware search, scaling & emergence |
+| `10_Module_21.ipynb` | 10 | Coordinate-wise exploitation, constraints, directional trust regions |
+| `11_Module_22.ipynb` | 11 | HEBO-inspired upgrades: output warping, noisy EI, multi-acquisition ensemble |
 
 ---
 
@@ -513,18 +564,18 @@ The balance evolved across weeks:
 
 ---
 
-## Key Results (After 8 Weeks)
+## Key Results (After 11 Weeks)
 
 | Function | Initial Best | Current Best | Week Found | Improvement |
 |----------|-------------|-------------|------------|-------------|
-| F1 | ~0 | **1.773** | Week 8 | Breakthrough + refinement |
-| F2 | 0.611 | 0.667 | Week 4 | +9% (stagnant) |
-| F3 | -0.035 | **-0.0145** | Week 7 | +59% |
-| F4 | 0.600 | **0.629** | Week 8 | +5% (breakthrough) |
-| F5 | 1618.5 | 1618.5 | Week 1 | Protected (boundary optimum) |
-| F6 | -0.714 | **-0.586** | Week 8 | +18% (2 consecutive improvements) |
-| F7 | 2.290 | **2.433** | Week 8 | +6% |
-| F8 | 9.066 | **9.928** | Week 8 | +10% |
+| F1 | ~0 | **1.993** | Week 10 | Breakthrough + coordinate-wise refinement |
+| F2 | 0.611 | 0.667 | Week 4 | +9% (stagnant since W4) |
+| F3 | -0.035 | **-0.0117** | Week 9 | +67% (trajectory following) |
+| F4 | 0.600 | **0.629** | Week 8 | +5% (extremely peaked) |
+| F5 | 1618.5 | **1675.3** | Week 10 | +3.5% (boundary fix + pinning) |
+| F6 | -0.714 | **-0.586** | Week 8 | +18% (trajectory hypothesis falsified) |
+| F7 | 2.290 | **2.480** | Week 10 | +8% (3 consecutive improvements) |
+| F8 | 9.066 | **9.937** | Week 10 | +10% (3 consecutive improvements) |
 
 ---
 
